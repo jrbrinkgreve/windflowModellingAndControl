@@ -1,0 +1,157 @@
+%implementation of Mohammadi et al.:
+%https://www.mdpi.com/1996-1073/15/23/9135
+
+%parameter definition:
+close all
+
+function params = load_params()
+    params.numypoints = 100;
+    params.numxpoints = 100;
+    params.numzpoints = 5;
+    params.CT = 0.66; %torque coeff.
+    params.beta = deg2rad   (0); %yaw angle
+    %yaw angle is assumed to be positive if the rotor is misaligned in the anticlockwise direction, seen from above.
+    params.R = 63; %rotor radius
+    params.u_hub = 8; %m./s, hub inflow vel.
+    params.u_in = linspace(6,10, params.numzpoints); %distribution of inflow vel over z
+    params.u_star = 0.4; %friction velocity
+    %(x,y,z) locations from turbine and from ground
+    params.z_hub = 90; %hub height
+    params.lambda = 7.5; %tip-speed ratio
+    params.k = 0.6 .* params.u_star ./ params.u_hub;
+    params.alpha_low = 0; %bottom of rotors veer direction
+    params.alpha_high = 0; %top
+    params.alpha = deg2rad(linspace(params.alpha_low, params.alpha_high, params.numzpoints));
+    params.xrange = linspace(2*params.R, 10.*params.R, params.numxpoints);
+    params.yrange = linspace(-3.*params.R, 3.*params.R, params.numypoints);
+    params.zrange = linspace(params.z_hub - params.R, params.z_hub + params.R, params.numzpoints);
+end
+
+
+
+params = load_params();
+[X, Y] = meshgrid(params.xrange, params.yrange); %X and Y should be of the same shape, same # entries
+
+
+%X = 5*params.R;   %single points evaluation
+%Y = 1*params.R;
+
+%preallocate flowfield
+flowfield = zeros(params.numxpoints, params.numypoints, params.numzpoints);
+
+
+%vectorize for faster operations
+X_vec = X(:); 
+Y_vec = Y(:);
+
+
+%some kind of for loop to go over all z heights initiated here...
+for z_idx = 1:params.numzpoints
+z = params.zrange(z_idx);
+alpha = params.alpha(z_idx);
+gamma = params.beta + alpha;
+
+%eq 3
+A_star = (1 + sqrt(1- params.CT .* cos(gamma).^2)) ./  (2.*sqrt(1- params.CT .* cos(gamma).^2));
+
+%eq 4
+xi_0_hat = params.R .* sqrt(A_star);
+
+
+
+%build rotation matrix for x,y at each z:
+rotmtx = [cos(alpha), sin(alpha); ...
+         -sin(alpha), cos(alpha)];
+
+
+
+%veered directions
+XYv_vec = [X_vec Y_vec] * rotmtx;
+Xv_vec = XYv_vec(:,1);
+Yv_vec = XYv_vec(:,2);
+
+
+
+%eq 5: determine dimless time 
+t_hat = -1.44 .* (params.u_in(z_idx) ./ params.u_star) .* (params.R ./ xi_0_hat) .* ...
+         (params.CT .* cos(gamma)^2 .* sin(gamma)) .* ...
+         (1 - exp(-0.35 .* (params.u_star ./ params.u_in(z_idx)) .* (Xv_vec ./ params.R)));
+
+
+
+%eq 6: normalized wake center
+sgn_t_hat = sign(t_hat);
+abs_t_hat = abs(t_hat);
+num = (pi - 1) .* abs_t_hat.^3 + 2 .* sqrt(3).*pi^2 .* t_hat.^2 + 48.*(pi - 1)^2 .* abs_t_hat;
+den = 2.*pi.*(pi - 1).*t_hat.^2 + 4 .* sqrt(3) .*pi^2 .* abs_t_hat + 96.*(pi - 1)^2;
+
+y_hat_c = (num ./ den) .* sgn_t_hat ...
+          - (2./pi) .* t_hat ./ (((z + params.z_hub)./xi_0_hat).^2 - 1);
+
+
+%eq 7: lateral wake center
+y_c = y_hat_c .* xi_0_hat;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+%skip eq 8-12: we use the wake shape approximation for now
+
+sigma_hat_squared = (params.k .* Xv_vec + 0.4 .* xi_0_hat ) .* (params.k .* Xv_vec + 0.4 .* xi_0_hat .* cos(gamma));
+ratio = (params.R.^2 .* params.CT .* cos(gamma).^3) ./ (2 .* sigma_hat_squared);
+ratio = min(ratio, 0.9999);     
+C = 1 - sqrt(1 - ratio);
+
+dU = C .* params.u_hub .* exp(-(  (Yv_vec - y_c).^2   + (z-params.z_hub).^2  ) ./ (2 .* sigma_hat_squared   ));
+
+U = params.u_hub - dU;
+
+U ./ params.u_hub;
+
+
+
+flowfield(:,:,z_idx) = reshape(U, size(X));
+
+end
+
+
+
+%when using meshgrid:
+
+for z_idx = 1:params.numzpoints
+figure('Color','w');
+surf(X./params.R, Y./params.R,  flowfield(:,:,z_idx) ./ params.u_hub);
+shading interp; view(2);
+xlabel('x/R'); ylabel('y/R');
+title(['Normalized velocity deficit \Deltau./u_h (relative yaw = ', num2str(rad2deg(params.beta + params.alpha(z_idx))), '°)']);
+colorbar; axis equal tight;
+grid on;
+end
+
+
+
+%{
+%to do:
+- check whether side profiles match paper
+- check whether wake deformation shape can be captured in the centerline
+formalism in floridyn
+
+- implement this in floridyn 3.0 matlab
+
+
+
+%}
+%}
