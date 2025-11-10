@@ -27,7 +27,7 @@ function params = load_params()
     params.zrange = linspace(params.z_hub - params.R, params.z_hub + params.R, params.numzpoints);
 end
 
-
+tic;
 
 params = load_params();
 [X, Y] = meshgrid(params.xrange, params.yrange); %X and Y should be of the same shape, same # entries
@@ -128,6 +128,15 @@ flowfield(:,:,z_idx) = reshape(U, size(X));
 end
 
 
+
+
+
+
+
+
+
+
+toc;
 
 %when using meshgrid:
 
