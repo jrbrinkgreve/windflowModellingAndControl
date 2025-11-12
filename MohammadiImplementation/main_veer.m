@@ -5,7 +5,7 @@
 
 close all
 function params = load_params()
-    params.numxpoints = 10;
+    params.numxpoints = 5;
     params.numypoints = 100;
     params.numzpoints = 100;
     params.R = 63; %rotor radius
@@ -21,7 +21,7 @@ function params = load_params()
     params.yrange = linspace(params.ylim_min, params.ylim_max, params.numypoints);
     params.zrange = linspace(params.zlim_min, params.zlim_max, params.numzpoints);
     params.CT = 0.66; %torque coeff.
-    params.beta = deg2rad(25); %yaw angle
+    params.beta = deg2rad(-25); %yaw angle
     %yaw angle is assumed to be positive if the rotor is misaligned in the anticlockwise direction, seen from above.
     params.u_hub = 8; %m./s, hub inflow vel.
     params.u_in = linspace(8,8, params.numzpoints); %distribution of inflow vel over z
@@ -180,11 +180,11 @@ toc;
 
 
 [Ygrid, Zgrid] = ndgrid(params.yrange, params.zrange);   % Ny x Nz grid [web:21]
-x_slices = [4 6 8 10];
+x_slices = 1:params.numxpoints;
 
-for xi = x_slices
+for x_index = x_slices
     % normalized delta U slice at fixed x
-    dUz = squeeze(delta_flowfield(xi, :, :)) ./ params.u_hub;  % Ny x Nz [web:21]
+    dUz = squeeze(delta_flowfield(x_index, :, :)) ./ params.u_hub;  % Ny x Nz [web:21]
 
     % choose smooth levels (adjust nLevels to taste)
     nLevels = 14;
@@ -202,14 +202,14 @@ for xi = x_slices
 
     % two-line title (main + subtitle)
    t = sprintf('Normalized velocity deficit ΔU/u_h at x/D = %.1f', ...
-            params.xrange(xi)/params.D);
+            params.xrange(x_index)/params.D);
     s = sprintf('Veer: %.2f °/m | Yaw: %.1f°', ...
             params.alpha_gradient, rad2deg(params.beta));
     title(t, s);
 end
 
 
-%}
+%{
 
 
 if params.numzpoints > 10
